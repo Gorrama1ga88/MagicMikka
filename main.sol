@@ -206,3 +206,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
             marketId: marketId,
             trader: msg.sender,
             tokenIn: tokenIn,
+            tokenOut: tokenOut,
+            amountIn: amountIn,
+            amountOutMin: amountOutMin,
+            deadline: deadline,
+            filled: false,
+            cancelled: false,
+            placedAtBlock: block.number
+        });
+        _marketOrderIds[marketId].push(orderId);
+        _incrementTraderOrderCount(msg.sender);
+
+        emit MikkaTradePlaced(orderId, marketId, msg.sender, tokenIn, tokenOut, amountIn, amountOutMin, deadline, block.number);
+        return orderId;
+    }
+
+    function executeOrder(uint256 orderId) external nonReentrant whenNotPaused returns (uint256 amountOut, uint256 feeWei) {
+        Order storage o = orders[orderId];
+        if (o.placedAtBlock == 0) revert MMK_OrderNotFound();
+        if (o.filled) revert MMK_OrderFilled();
+        if (o.cancelled) revert MMK_OrderCancelled();
+        if (block.timestamp > o.deadline) revert MMK_OrderExpired();
+
+        address[] memory path = new address[](2);
+        path[0] = o.tokenIn;
+        path[1] = o.tokenOut;
+
+        feeWei = (o.amountIn * MIKKA_FEE_BPS) / MIKKA_BPS_DENOM;
+        uint256 amountInAfterFee = o.amountIn - feeWei;
+
+        IERC20Min(o.tokenIn).transferFrom(o.trader, address(this), o.amountIn);
+        if (feeWei > 0) {
+            bool ok = IERC20Min(o.tokenIn).transfer(feeCollector, feeWei);
+            if (!ok) revert MMK_TransferFailed();
+        }
+
+        IERC20Min(o.tokenIn).approve(router, amountInAfterFee);
+        uint256 balanceBefore = IERC20Min(o.tokenOut).balanceOf(o.trader);
+
+        try IRouterMin(router).swapExactTokensForTokens(
+            amountInAfterFee,
+            o.amountOutMin,
+            path,
+            o.trader,
+            o.deadline
+        ) returns (uint256[] memory amounts) {
+            amountOut = amounts[amounts.length - 1];
+        } catch {
+            IERC20Min(o.tokenIn).approve(router, 0);
+            bool refund = IERC20Min(o.tokenIn).transfer(o.trader, o.amountIn);
+            if (!refund) revert MMK_TransferFailed();
+            revert MMK_RouterFailed();
+        }
