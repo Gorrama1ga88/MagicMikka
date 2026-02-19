@@ -50,3 +50,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
         uint256 amountOut,
         uint256 feeWei,
         uint256 filledAtBlock
+    );
+    event MikkaTradeCancelled(uint256 indexed orderId, uint256 atBlock);
+    event MikkaFeesCollected(address indexed token, address indexed to, uint256 amountWei);
+    event MikkaPlatformPaused(bool paused);
+    event MikkaRouterUpdated(address indexed previousRouter, address indexed newRouter);
+    event MikkaPlatformGuardUpdated(address indexed previousGuard, address indexed newGuard);
+
+    error MMK_ZeroAmount();
+    error MMK_ZeroAddress();
+    error MMK_NotPlatformGuard();
+    error MMK_TransferFailed();
+    error MMK_MarketExists();
+    error MMK_MarketNotFound();
+    error MMK_OrderNotFound();
+    error MMK_OrderExpired();
+    error MMK_OrderFilled();
+    error MMK_OrderCancelled();
+    error MMK_Slippage();
+    error MMK_Paused();
+    error MMK_PathLength();
+    error MMK_InsufficientBalance();
+    error MMK_RouterFailed();
+    error MMK_InvalidMarket();
+
+    uint256 public constant MIKKA_BPS_DENOM = 10000;
+    uint256 public constant MIKKA_FEE_BPS = 15;
+    uint256 public constant MIKKA_MAX_SLIPPAGE_BPS = 100;
+    uint256 public constant MIKKA_MIN_PATH_LEN = 2;
+    uint256 public constant MIKKA_MAX_PATH_LEN = 5;
+    uint256 public constant MIKKA_MAX_MARKETS = 128;
+    uint256 public constant MIKKA_MAX_ORDERS_PER_MARKET = 256;
+    bytes32 public constant MIKKA_PLATFORM_SALT = bytes32(uint256(0x2e4f6a8b0c2d4e6f8a0b2c4d6e8f0a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2e4f6a));
+
+    address public immutable feeCollector;
+    address public immutable weth;
+    uint256 public immutable genesisBlock;
+    bytes32 public immutable platformNonce;
+
+    address public router;
+    address public platformGuard;
+    bool public platformPaused;
+    uint256 public marketCounter;
+    uint256 public orderCounter;
+
+    struct Market {
+        address baseToken;
+        address quoteToken;
+        uint256 listedAtBlock;
+        bool active;
+    }
+
+    struct Order {
