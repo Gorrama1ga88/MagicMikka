@@ -258,3 +258,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
             if (!refund) revert MMK_TransferFailed();
             revert MMK_RouterFailed();
         }
+
+        IERC20Min(o.tokenIn).approve(router, 0);
+        uint256 balanceAfter = IERC20Min(o.tokenOut).balanceOf(o.trader);
+        if (balanceAfter <= balanceBefore) revert MMK_TransferFailed();
+        amountOut = balanceAfter - balanceBefore;
+
+        o.filled = true;
+        emit MikkaTradeFilled(orderId, amountOut, feeWei, block.number);
+        return (amountOut, feeWei);
+    }
+
+    function cancelOrder(uint256 orderId) external {
+        Order storage o = orders[orderId];
+        if (o.placedAtBlock == 0) revert MMK_OrderNotFound();
+        if (o.filled) revert MMK_OrderFilled();
+        if (o.trader != msg.sender && msg.sender != platformGuard) revert MMK_NotPlatformGuard();
+        o.cancelled = true;
+        emit MikkaTradeCancelled(orderId, block.number);
+    }
+
+    function quoteOut(uint256 marketId, address tokenIn, address tokenOut, uint256 amountIn) external view returns (uint256 amountOutEst) {
+        Market storage m = markets[marketId];
+        if (m.listedAtBlock == 0) return 0;
+        if (amountIn == 0 || tokenIn == address(0) || tokenOut == address(0)) return 0;
+        address[] memory path = new address[](2);
+        path[0] = tokenIn;
+        path[1] = tokenOut;
+        (bool success, bytes memory data) = router.staticcall(
+            abi.encodeWithSignature("getAmountsOut(uint256,address[])", amountIn, path)
+        );
+        if (!success || data.length < 32) return 0;
+        uint256[] memory amounts = abi.decode(data, (uint256[]));
+        if (amounts.length < 2) return 0;
+        return amounts[amounts.length - 1];
+    }
+
+    function getMarket(uint256 marketId) external view returns (
+        address baseToken,
+        address quoteToken,
+        uint256 listedAtBlock,
+        bool active
+    ) {
+        Market storage m = markets[marketId];
+        if (m.listedAtBlock == 0) revert MMK_MarketNotFound();
+        return (m.baseToken, m.quoteToken, m.listedAtBlock, m.active);
+    }
+
+    function getOrder(uint256 orderId) external view returns (
+        uint256 marketId,
+        address trader,
+        address tokenIn,
+        address tokenOut,
