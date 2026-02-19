@@ -154,3 +154,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
         if (newGuard == address(0)) revert MMK_ZeroAddress();
         address prev = platformGuard;
         platformGuard = newGuard;
+        emit MikkaPlatformGuardUpdated(prev, newGuard);
+    }
+
+    function _marketKey(address base, address quote) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(base, quote));
+    }
+
+    function listMarket(address baseToken, address quoteToken) external onlyGuard whenNotPaused returns (uint256 marketId) {
+        if (baseToken == address(0) || quoteToken == address(0)) revert MMK_ZeroAddress();
+        if (baseToken == quoteToken) revert MMK_InvalidMarket();
+        bytes32 key = _marketKey(baseToken, quoteToken);
+        if (_marketKeyExists[key]) revert MMK_MarketExists();
+        if (marketCounter >= MIKKA_MAX_MARKETS) revert MMK_PathLength();
+
+        marketCounter++;
+        marketId = marketCounter;
+        _marketKeyExists[key] = true;
+        markets[marketId] = Market({
+            baseToken: baseToken,
+            quoteToken: quoteToken,
+            listedAtBlock: block.number,
+            active: true
+        });
+        emit MikkaMarketListed(marketId, baseToken, quoteToken, block.number);
+        return marketId;
+    }
+
+    function placeOrder(
+        uint256 marketId,
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        uint256 deadline
+    ) external whenNotPaused returns (uint256 orderId) {
+        if (amountIn == 0) revert MMK_ZeroAmount();
+        if (tokenIn == address(0) || tokenOut == address(0)) revert MMK_ZeroAddress();
+        if (deadline <= block.timestamp) revert MMK_OrderExpired();
+
+        Market storage m = markets[marketId];
+        if (m.listedAtBlock == 0 || !m.active) revert MMK_MarketNotFound();
+        if ((tokenIn != m.baseToken || tokenOut != m.quoteToken) && (tokenIn != m.quoteToken || tokenOut != m.baseToken)) revert MMK_InvalidMarket();
+
+        uint256[] memory orderIds = _marketOrderIds[marketId];
+        if (orderIds.length >= MIKKA_MAX_ORDERS_PER_MARKET) revert MMK_PathLength();
+
+        orderCounter++;
+        orderId = orderCounter;
+        orders[orderId] = Order({
+            marketId: marketId,
+            trader: msg.sender,
+            tokenIn: tokenIn,
