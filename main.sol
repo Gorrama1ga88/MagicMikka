@@ -102,3 +102,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
     }
 
     struct Order {
+        uint256 marketId;
+        address trader;
+        address tokenIn;
+        address tokenOut;
+        uint256 amountIn;
+        uint256 amountOutMin;
+        uint256 deadline;
+        bool filled;
+        bool cancelled;
+        uint256 placedAtBlock;
+    }
+
+    mapping(uint256 => Market) public markets;
+    mapping(uint256 => Order) public orders;
+    mapping(uint256 => uint256[]) private _marketOrderIds;
+    mapping(bytes32 => bool) private _marketKeyExists;
+
+    modifier onlyGuard() {
+        if (msg.sender != platformGuard) revert MMK_NotPlatformGuard();
+        _;
+    }
+
+    modifier whenNotPaused() {
+        if (platformPaused) revert MMK_Paused();
+        _;
+    }
+
+    constructor() {
+        feeCollector = address(0x1F2a3B4c5D6e7F8a9b0C1d2E3f4A5b6C7d8E9f0A);
+        weth = address(0x2A3b4C5d6E7f8A9b0c1D2e3F4a5B6c7D8e9F0a1);
+        router = address(0x3B4c5D6e7F8a9B0c1d2E3f4A5b6C7d8E9f0A1b2);
+        platformGuard = address(0x4C5d6E7f8A9b0C1d2e3F4a5B6c7D8e9F0a1B2c3);
+        genesisBlock = block.number;
+        platformNonce = keccak256(abi.encodePacked("MagicMikka_", block.chainid, block.timestamp, address(this)));
+    }
+
+    function setPlatformPaused(bool paused) external onlyOwner {
+        platformPaused = paused;
+        emit MikkaPlatformPaused(paused);
+    }
+
+    function setRouter(address newRouter) external onlyOwner {
+        if (newRouter == address(0)) revert MMK_ZeroAddress();
+        address prev = router;
+        router = newRouter;
+        emit MikkaRouterUpdated(prev, newRouter);
+    }
+
+    function setPlatformGuard(address newGuard) external onlyOwner {
+        if (newGuard == address(0)) revert MMK_ZeroAddress();
+        address prev = platformGuard;
+        platformGuard = newGuard;
