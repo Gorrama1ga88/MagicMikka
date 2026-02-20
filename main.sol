@@ -310,3 +310,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
         address trader,
         address tokenIn,
         address tokenOut,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        uint256 deadline,
+        bool filled,
+        bool cancelled,
+        uint256 placedAtBlock
+    ) {
+        Order storage o = orders[orderId];
+        if (o.placedAtBlock == 0) revert MMK_OrderNotFound();
+        return (
+            o.marketId,
+            o.trader,
+            o.tokenIn,
+            o.tokenOut,
+            o.amountIn,
+            o.amountOutMin,
+            o.deadline,
+            o.filled,
+            o.cancelled,
+            o.placedAtBlock
+        );
+    }
+
+    function getMarketOrderIds(uint256 marketId) external view returns (uint256[] memory) {
+        return _marketOrderIds[marketId];
+    }
+
+    function getMarketOrderCount(uint256 marketId) external view returns (uint256) {
+        return _marketOrderIds[marketId].length;
+    }
+
+    function getOrderCount() external view returns (uint256) {
+        return orderCounter;
+    }
+
+    function getMarketCount() external view returns (uint256) {
+        return marketCounter;
+    }
+
+    function setMarketActive(uint256 marketId, bool active) external onlyOwner {
+        Market storage m = markets[marketId];
+        if (m.listedAtBlock == 0) revert MMK_MarketNotFound();
+        m.active = active;
+    }
+
+    function withdrawStuckToken(address token, address to, uint256 amount) external onlyOwner {
+        if (to == address(0)) revert MMK_ZeroAddress();
+        bool ok = IERC20Min(token).transfer(to, amount);
+        if (!ok) revert MMK_TransferFailed();
+    }
+
+    // -------------------------------------------------------------------------
