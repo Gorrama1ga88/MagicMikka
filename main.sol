@@ -414,3 +414,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
         uint256[] memory placedAtBlocks
     ) {
         uint256 maxId = orderCounter;
+        if (fromId == 0 || fromId > maxId) {
+            ids = new uint256[](0);
+            marketIds = new uint256[](0);
+            traders = new address[](0);
+            tokensIn = new address[](0);
+            tokensOut = new address[](0);
+            amountsIn = new uint256[](0);
+            amountsOutMin = new uint256[](0);
+            deadlines = new uint256[](0);
+            filleds = new bool[](0);
+            cancelleds = new bool[](0);
+            placedAtBlocks = new uint256[](0);
+            return (ids, marketIds, traders, tokensIn, tokensOut, amountsIn, amountsOutMin, deadlines, filleds, cancelleds, placedAtBlocks);
+        }
+        uint256 len = count;
+        if (fromId + len > maxId + 1) len = maxId - fromId + 1;
+        ids = new uint256[](len);
+        marketIds = new uint256[](len);
+        traders = new address[](len);
+        tokensIn = new address[](len);
+        tokensOut = new address[](len);
+        amountsIn = new uint256[](len);
+        amountsOutMin = new uint256[](len);
+        deadlines = new uint256[](len);
+        filleds = new bool[](len);
+        cancelleds = new bool[](len);
+        placedAtBlocks = new uint256[](len);
+        for (uint256 i = 0; i < len; i++) {
+            uint256 id = fromId + i;
+            Order storage o = orders[id];
+            ids[i] = id;
+            marketIds[i] = o.marketId;
+            traders[i] = o.trader;
+            tokensIn[i] = o.tokenIn;
+            tokensOut[i] = o.tokenOut;
+            amountsIn[i] = o.amountIn;
+            amountsOutMin[i] = o.amountOutMin;
+            deadlines[i] = o.deadline;
+            filleds[i] = o.filled;
+            cancelleds[i] = o.cancelled;
+            placedAtBlocks[i] = o.placedAtBlock;
+        }
+        return (ids, marketIds, traders, tokensIn, tokensOut, amountsIn, amountsOutMin, deadlines, filleds, cancelleds, placedAtBlocks);
+    }
+
+    function getOpenOrderIdsForMarket(uint256 marketId) external view returns (uint256[] memory) {
+        uint256[] memory allIds = _marketOrderIds[marketId];
+        uint256 openCount = 0;
+        for (uint256 i = 0; i < allIds.length; i++) {
+            Order storage o = orders[allIds[i]];
+            if (!o.filled && !o.cancelled && block.timestamp <= o.deadline) openCount++;
+        }
