@@ -882,3 +882,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
     /// Paused state
     function isPaused() external view returns (bool) {
         return platformPaused;
+    }
+
+    /// Validate market id and return base/quote
+    function resolveMarket(uint256 marketId) external view returns (address baseToken, address quoteToken) {
+        Market storage m = markets[marketId];
+        if (m.listedAtBlock == 0) revert MMK_MarketNotFound();
+        return (m.baseToken, m.quoteToken);
+    }
+
+    /// Suggest minimum amount out for a given estimated output and slippage bps
+    function suggestMinAmountOut(uint256 amountOutEst, uint256 slippageBps) external pure returns (uint256) {
+        return minAmountOutWithSlippage(amountOutEst, slippageBps);
+    }
+
+    // -------------------------------------------------------------------------
+    // Multi-hop direct swap (path length 2 to MIKKA_MAX_PATH_LEN)
+    // -------------------------------------------------------------------------
+
+    event MikkaDirectSwapMultiHop(
+        address indexed trader,
+        address indexed tokenIn,
+        address indexed tokenOut,
+        uint256 pathLength,
+        uint256 amountIn,
+        uint256 amountOut,
+        uint256 feeWei,
+        uint256 atBlock
+    );
+
+    function executeSwapDirectMultiHop(
+        address[] calldata path,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        uint256 deadline
+    ) external nonReentrant whenNotPaused returns (uint256 amountOut, uint256 feeWei) {
+        if (path.length < MIKKA_MIN_PATH_LEN || path.length > MIKKA_MAX_PATH_LEN) revert MMK_PathLength();
+        if (amountIn == 0) revert MMK_ZeroAmount();
+        if (path[0] == address(0) || path[path.length - 1] == address(0)) revert MMK_ZeroAddress();
+
+        feeWei = feeForAmount(amountIn);
+        uint256 amountInAfterFee = amountIn - feeWei;
+
+        IERC20Min(path[0]).transferFrom(msg.sender, address(this), amountIn);
+        if (feeWei > 0) {
+            bool ok = IERC20Min(path[0]).transfer(feeCollector, feeWei);
+            if (!ok) revert MMK_TransferFailed();
+        }
+
+        IERC20Min(path[0]).approve(router, amountInAfterFee);
+        address tokenOut = path[path.length - 1];
+        uint256 balanceBefore = IERC20Min(tokenOut).balanceOf(msg.sender);
+
