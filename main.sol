@@ -726,3 +726,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
     function getFilledOrderCount() external view returns (uint256 count) {
         for (uint256 i = 1; i <= orderCounter; i++) {
             if (orders[i].filled) count++;
+        }
+        return count;
+    }
+
+    /// Returns the number of cancelled orders globally
+    function getCancelledOrderCount() external view returns (uint256 count) {
+        for (uint256 i = 1; i <= orderCounter; i++) {
+            if (orders[i].cancelled) count++;
+        }
+        return count;
+    }
+
+    /// Returns the number of open (not filled, not cancelled, not expired) orders globally
+    function getOpenOrderCount() external view returns (uint256 count) {
+        for (uint256 i = 1; i <= orderCounter; i++) {
+            Order storage o = orders[i];
+            if (!o.filled && !o.cancelled && block.timestamp <= o.deadline) count++;
+        }
+        return count;
+    }
+
+    /// Batch get order summaries for order IDs
+    function getOrderSummariesBatch(uint256[] calldata orderIdsIn) external view returns (
+        uint256[] memory marketIdsOut,
+        address[] memory tradersOut,
+        uint256[] memory amountsInOut,
+        uint256[] memory amountsOutMinOut,
+        uint256[] memory deadlinesOut,
+        bool[] memory filledsOut,
+        bool[] memory cancelledsOut
+    ) {
+        uint256 len = orderIdsIn.length;
+        marketIdsOut = new uint256[](len);
+        tradersOut = new address[](len);
+        amountsInOut = new uint256[](len);
+        amountsOutMinOut = new uint256[](len);
+        deadlinesOut = new uint256[](len);
+        filledsOut = new bool[](len);
+        cancelledsOut = new bool[](len);
+        for (uint256 i = 0; i < len; i++) {
+            Order storage o = orders[orderIdsIn[i]];
+            marketIdsOut[i] = o.marketId;
+            tradersOut[i] = o.trader;
+            amountsInOut[i] = o.amountIn;
+            amountsOutMinOut[i] = o.amountOutMin;
+            deadlinesOut[i] = o.deadline;
+            filledsOut[i] = o.filled;
+            cancelledsOut[i] = o.cancelled;
+        }
+        return (marketIdsOut, tradersOut, amountsInOut, amountsOutMinOut, deadlinesOut, filledsOut, cancelledsOut);
+    }
+
