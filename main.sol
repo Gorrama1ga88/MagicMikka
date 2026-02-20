@@ -362,3 +362,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
     }
 
     // -------------------------------------------------------------------------
+    // Batch view helpers (no state change)
+    // -------------------------------------------------------------------------
+
+    function getMarketsBatch(uint256 fromId, uint256 count) external view returns (
+        uint256[] memory ids,
+        address[] memory baseTokens,
+        address[] memory quoteTokens,
+        uint256[] memory listedAtBlocks,
+        bool[] memory actives
+    ) {
+        uint256 maxId = marketCounter;
+        if (fromId == 0 || fromId > maxId) {
+            ids = new uint256[](0);
+            baseTokens = new address[](0);
+            quoteTokens = new address[](0);
+            listedAtBlocks = new uint256[](0);
+            actives = new bool[](0);
+            return (ids, baseTokens, quoteTokens, listedAtBlocks, actives);
+        }
+        uint256 len = count;
+        if (fromId + len > maxId + 1) len = maxId - fromId + 1;
+        ids = new uint256[](len);
+        baseTokens = new address[](len);
+        quoteTokens = new address[](len);
+        listedAtBlocks = new uint256[](len);
+        actives = new bool[](len);
+        for (uint256 i = 0; i < len; i++) {
+            uint256 id = fromId + i;
+            Market storage m = markets[id];
+            ids[i] = id;
+            baseTokens[i] = m.baseToken;
+            quoteTokens[i] = m.quoteToken;
+            listedAtBlocks[i] = m.listedAtBlock;
+            actives[i] = m.active;
+        }
+        return (ids, baseTokens, quoteTokens, listedAtBlocks, actives);
+    }
+
+    function getOrdersBatch(uint256 fromId, uint256 count) external view returns (
+        uint256[] memory ids,
+        uint256[] memory marketIds,
+        address[] memory traders,
+        address[] memory tokensIn,
+        address[] memory tokensOut,
+        uint256[] memory amountsIn,
+        uint256[] memory amountsOutMin,
+        uint256[] memory deadlines,
+        bool[] memory filleds,
+        bool[] memory cancelleds,
+        uint256[] memory placedAtBlocks
+    ) {
+        uint256 maxId = orderCounter;
