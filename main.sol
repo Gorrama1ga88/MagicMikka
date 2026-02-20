@@ -518,3 +518,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
     function feeForAmount(uint256 amountIn) public pure returns (uint256) {
         return (amountIn * MIKKA_FEE_BPS) / MIKKA_BPS_DENOM;
     }
+
+    function amountInAfterFee(uint256 amountIn) public pure returns (uint256) {
+        return amountIn - feeForAmount(amountIn);
+    }
+
+    // -------------------------------------------------------------------------
+    // Direct swap (no order): user sends tokenIn, receives tokenOut via router
+    // -------------------------------------------------------------------------
+
+    event MikkaDirectSwap(
+        address indexed trader,
+        address indexed tokenIn,
+        address indexed tokenOut,
+        uint256 amountIn,
+        uint256 amountOut,
+        uint256 feeWei,
+        uint256 atBlock
+    );
+
+    function executeSwapDirect(
+        address tokenIn,
+        address tokenOut,
+        uint256 amountIn,
+        uint256 amountOutMin,
+        uint256 deadline
+    ) external nonReentrant whenNotPaused returns (uint256 amountOut, uint256 feeWei) {
+        if (amountIn == 0) revert MMK_ZeroAmount();
+        if (tokenIn == address(0) || tokenOut == address(0)) revert MMK_ZeroAddress();
+
+        address[] memory path = new address[](2);
+        path[0] = tokenIn;
+        path[1] = tokenOut;
+
+        feeWei = feeForAmount(amountIn);
+        uint256 amountInAfterFee = amountIn - feeWei;
+
+        IERC20Min(tokenIn).transferFrom(msg.sender, address(this), amountIn);
+        if (feeWei > 0) {
+            bool ok = IERC20Min(tokenIn).transfer(feeCollector, feeWei);
+            if (!ok) revert MMK_TransferFailed();
+        }
+
+        IERC20Min(tokenIn).approve(router, amountInAfterFee);
+        uint256 balanceBefore = IERC20Min(tokenOut).balanceOf(msg.sender);
+
+        try IRouterMin(router).swapExactTokensForTokens(
+            amountInAfterFee,
+            amountOutMin,
+            path,
+            msg.sender,
+            deadline
+        ) returns (uint256[] memory amounts) {
