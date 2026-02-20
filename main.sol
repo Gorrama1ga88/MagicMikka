@@ -570,3 +570,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
             msg.sender,
             deadline
         ) returns (uint256[] memory amounts) {
+            amountOut = amounts[amounts.length - 1];
+        } catch {
+            IERC20Min(tokenIn).approve(router, 0);
+            bool refund = IERC20Min(tokenIn).transfer(msg.sender, amountIn);
+            if (!refund) revert MMK_TransferFailed();
+            revert MMK_RouterFailed();
+        }
+
+        IERC20Min(tokenIn).approve(router, 0);
+        uint256 balanceAfter = IERC20Min(tokenOut).balanceOf(msg.sender);
+        if (balanceAfter <= balanceBefore) revert MMK_TransferFailed();
+        amountOut = balanceAfter - balanceBefore;
+
+        emit MikkaDirectSwap(msg.sender, tokenIn, tokenOut, amountIn, amountOut, feeWei, block.number);
+        return (amountOut, feeWei);
+    }
+
+    // -------------------------------------------------------------------------
+    // Quote and stats views (read-only, no state change)
+    // -------------------------------------------------------------------------
+
+    function quoteDirect(address tokenIn, address tokenOut, uint256 amountIn) external view returns (uint256 amountOutEst) {
+        if (amountIn == 0 || tokenIn == address(0) || tokenOut == address(0)) return 0;
+        address[] memory path = new address[](2);
+        path[0] = tokenIn;
+        path[1] = tokenOut;
+        (bool success, bytes memory data) = router.staticcall(
+            abi.encodeWithSignature("getAmountsOut(uint256,address[])", amountIn, path)
+        );
+        if (!success || data.length < 32) return 0;
+        uint256[] memory amounts = abi.decode(data, (uint256[]));
+        if (amounts.length < 2) return 0;
+        amountOutEst = amounts[amounts.length - 1];
+    }
+
+    function quoteDirectAfterFee(address tokenIn, address tokenOut, uint256 amountIn) external view returns (uint256 amountOutEst) {
+        uint256 afterFee = amountInAfterFee(amountIn);
+        return quoteDirect(tokenIn, tokenOut, afterFee);
+    }
+
+    function getPlatformConfig() external view returns (
+        address feeCollector_,
+        address weth_,
+        address router_,
+        address platformGuard_,
+        uint256 genesisBlock_,
+        bool platformPaused_,
+        uint256 marketCount_,
+        uint256 orderCount_
+    ) {
+        return (
+            feeCollector,
