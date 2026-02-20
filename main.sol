@@ -1038,3 +1038,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
     // -------------------------------------------------------------------------
     // Additional view helpers for frontends / subgraphs
     // -------------------------------------------------------------------------
+
+    /// Returns first N market IDs (1-based)
+    function getMarketIdsUpTo(uint256 n) external view returns (uint256[] memory ids) {
+        uint256 max = marketCounter;
+        if (n > max) n = max;
+        ids = new uint256[](n);
+        for (uint256 i = 0; i < n; i++) {
+            ids[i] = i + 1;
+        }
+        return ids;
+    }
+
+    /// Returns first N order IDs (1-based)
+    function getOrderIdsUpTo(uint256 n) external view returns (uint256[] memory ids) {
+        uint256 max = orderCounter;
+        if (n > max) n = max;
+        ids = new uint256[](n);
+        for (uint256 i = 0; i < n; i++) {
+            ids[i] = i + 1;
+        }
+        return ids;
+    }
+
+    /// Whether the given order can be executed by anyone (open and not expired, market active)
+    function canExecuteOrder(uint256 orderId) external view returns (bool) {
+        return isOrderExecutable(orderId);
+    }
+
+    /// Full order details for a single order (convenience)
+    function getOrderFull(uint256 orderId) external view returns (
+        uint256 marketId_,
+        address trader_,
+        address tokenIn_,
+        address tokenOut_,
+        uint256 amountIn_,
+        uint256 amountOutMin_,
+        uint256 deadline_,
+        bool filled_,
+        bool cancelled_,
+        uint256 placedAtBlock_
+    ) {
+        Order storage o = orders[orderId];
+        if (o.placedAtBlock == 0) revert MMK_OrderNotFound();
+        marketId_ = o.marketId;
+        trader_ = o.trader;
+        tokenIn_ = o.tokenIn;
+        tokenOut_ = o.tokenOut;
+        amountIn_ = o.amountIn;
+        amountOutMin_ = o.amountOutMin;
+        deadline_ = o.deadline;
+        filled_ = o.filled;
+        cancelled_ = o.cancelled;
