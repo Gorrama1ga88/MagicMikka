@@ -778,3 +778,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
         return (marketIdsOut, tradersOut, amountsInOut, amountsOutMinOut, deadlinesOut, filledsOut, cancelledsOut);
     }
 
+    /// Batch get market summaries for market IDs
+    function getMarketSummariesBatch(uint256[] calldata marketIdsIn) external view returns (
+        address[] memory baseTokensOut,
+        address[] memory quoteTokensOut,
+        uint256[] memory orderCountsOut,
+        bool[] memory activesOut
+    ) {
+        uint256 len = marketIdsIn.length;
+        baseTokensOut = new address[](len);
+        quoteTokensOut = new address[](len);
+        orderCountsOut = new uint256[](len);
+        activesOut = new bool[](len);
+        for (uint256 i = 0; i < len; i++) {
+            Market storage m = markets[marketIdsIn[i]];
+            baseTokensOut[i] = m.baseToken;
+            quoteTokensOut[i] = m.quoteToken;
+            orderCountsOut[i] = _marketOrderIds[marketIdsIn[i]].length;
+            activesOut[i] = m.active;
+        }
+        return (baseTokensOut, quoteTokensOut, orderCountsOut, activesOut);
+    }
+
+    /// Single order status flags
+    function getOrderStatus(uint256 orderId) external view returns (
+        bool exists,
+        bool filled,
+        bool cancelled,
+        bool expired,
+        bool executable
+    ) {
+        Order storage o = orders[orderId];
+        exists = o.placedAtBlock != 0;
+        if (!exists) {
+            return (false, false, false, false, false);
+        }
+        filled = o.filled;
+        cancelled = o.cancelled;
+        expired = block.timestamp > o.deadline;
+        executable = !filled && !cancelled && !expired;
+        Market storage m = markets[o.marketId];
+        if (m.listedAtBlock == 0 || !m.active) executable = false;
+        return (exists, filled, cancelled, expired, executable);
+    }
+
+    /// Single market active flag and order count
+    function getMarketStatus(uint256 marketId) external view returns (
+        bool exists,
+        bool active,
+        uint256 numOrders
+    ) {
+        Market storage m = markets[marketId];
+        exists = m.listedAtBlock != 0;
