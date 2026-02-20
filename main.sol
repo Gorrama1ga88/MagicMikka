@@ -466,3 +466,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
             Order storage o = orders[allIds[i]];
             if (!o.filled && !o.cancelled && block.timestamp <= o.deadline) openCount++;
         }
+        uint256[] memory openIds = new uint256[](openCount);
+        uint256 j = 0;
+        for (uint256 i = 0; i < allIds.length; i++) {
+            Order storage o = orders[allIds[i]];
+            if (!o.filled && !o.cancelled && block.timestamp <= o.deadline) {
+                openIds[j] = allIds[i];
+                j++;
+            }
+        }
+        return openIds;
+    }
+
+    function getOpenOrderCountForMarket(uint256 marketId) external view returns (uint256) {
+        uint256[] memory allIds = _marketOrderIds[marketId];
+        uint256 count = 0;
+        for (uint256 i = 0; i < allIds.length; i++) {
+            Order storage o = orders[allIds[i]];
+            if (!o.filled && !o.cancelled && block.timestamp <= o.deadline) count++;
+        }
+        return count;
+    }
+
+    function marketExists(bytes32 key) external view returns (bool) {
+        return _marketKeyExists[key];
+    }
+
+    function marketIdByPair(address baseToken, address quoteToken) external view returns (uint256) {
+        bytes32 key = _marketKey(baseToken, quoteToken);
+        if (!_marketKeyExists[key]) return 0;
+        for (uint256 i = 1; i <= marketCounter; i++) {
+            Market storage m = markets[i];
+            if (m.baseToken == baseToken && m.quoteToken == quoteToken) return i;
+        }
+        return 0;
+    }
+
+    function isOrderExecutable(uint256 orderId) external view returns (bool) {
+        Order storage o = orders[orderId];
+        if (o.placedAtBlock == 0 || o.filled || o.cancelled) return false;
+        if (block.timestamp > o.deadline) return false;
+        Market storage m = markets[o.marketId];
+        return m.listedAtBlock != 0 && m.active;
+    }
+
+    function minAmountOutWithSlippage(uint256 amountOutEst, uint256 slippageBps) public pure returns (uint256) {
+        if (slippageBps > MIKKA_BPS_DENOM) slippageBps = MIKKA_BPS_DENOM;
+        return (amountOutEst * (MIKKA_BPS_DENOM - slippageBps)) / MIKKA_BPS_DENOM;
+    }
+
+    function feeForAmount(uint256 amountIn) public pure returns (uint256) {
+        return (amountIn * MIKKA_FEE_BPS) / MIKKA_BPS_DENOM;
+    }
