@@ -674,3 +674,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
     function getMarketOrderIdsPaginated(
         uint256 marketId,
         uint256 offset,
+        uint256 limit,
+        bool openOnly
+    ) external view returns (uint256[] memory orderIds) {
+        uint256[] memory allIds = _marketOrderIds[marketId];
+        uint256 total = allIds.length;
+        if (offset >= total) {
+            orderIds = new uint256[](0);
+            return orderIds;
+        }
+        uint256 maxLen = limit;
+        if (offset + maxLen > total) maxLen = total - offset;
+
+        if (!openOnly) {
+            orderIds = new uint256[](maxLen);
+            for (uint256 i = 0; i < maxLen; i++) {
+                orderIds[i] = allIds[offset + i];
+            }
+            return orderIds;
+        }
+
+        uint256 openCount = 0;
+        for (uint256 i = offset; i < offset + maxLen && i < total; i++) {
+            Order storage o = orders[allIds[i]];
+            if (!o.filled && !o.cancelled && block.timestamp <= o.deadline) openCount++;
+        }
+        orderIds = new uint256[](openCount);
+        uint256 j = 0;
+        for (uint256 i = offset; i < offset + maxLen && i < total; i++) {
+            Order storage o = orders[allIds[i]];
+            if (!o.filled && !o.cancelled && block.timestamp <= o.deadline) {
+                orderIds[j] = allIds[i];
+                j++;
+            }
+        }
+        return orderIds;
+    }
+
+    /// Check if a market is listed and active for base/quote pair
+    function isMarketListed(address baseToken, address quoteToken) external view returns (bool) {
+        bytes32 key = _marketKey(baseToken, quoteToken);
+        if (!_marketKeyExists[key]) return false;
+        for (uint256 i = 1; i <= marketCounter; i++) {
+            Market storage m = markets[i];
+            if (m.baseToken == baseToken && m.quoteToken == quoteToken && m.active) return true;
+        }
+        return false;
+    }
+
+    /// Returns the number of filled orders globally
+    function getFilledOrderCount() external view returns (uint256 count) {
+        for (uint256 i = 1; i <= orderCounter; i++) {
+            if (orders[i].filled) count++;
