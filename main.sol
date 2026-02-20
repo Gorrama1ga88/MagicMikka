@@ -1090,3 +1090,40 @@ contract MagicMikka is ReentrancyGuard, Ownable {
         deadline_ = o.deadline;
         filled_ = o.filled;
         cancelled_ = o.cancelled;
+        placedAtBlock_ = o.placedAtBlock;
+        return (marketId_, trader_, tokenIn_, tokenOut_, amountIn_, amountOutMin_, deadline_, filled_, cancelled_, placedAtBlock_);
+    }
+
+    /// Full market details for a single market (convenience)
+    function getMarketFull(uint256 marketId) external view returns (
+        address baseToken_,
+        address quoteToken_,
+        uint256 listedAtBlock_,
+        bool active_,
+        uint256 numOrders_
+    ) {
+        Market storage m = markets[marketId];
+        if (m.listedAtBlock == 0) revert MMK_MarketNotFound();
+        baseToken_ = m.baseToken;
+        quoteToken_ = m.quoteToken;
+        listedAtBlock_ = m.listedAtBlock;
+        active_ = m.active;
+        numOrders_ = _marketOrderIds[marketId].length;
+        return (baseToken_, quoteToken_, listedAtBlock_, active_, numOrders_);
+    }
+
+    /// Compute fee for a given amount (same as feeForAmount, duplicate for ABI clarity)
+    function computeFee(uint256 amountIn) external pure returns (uint256) {
+        return feeForAmount(amountIn);
+    }
+
+    /// Compute amount in after fee (same as amountInAfterFee)
+    function computeAmountAfterFee(uint256 amountIn) external pure returns (uint256) {
+        return amountInAfterFee(amountIn);
+    }
+
+    /// Compute minimum amount out for a given expected output and slippage (same as minAmountOutWithSlippage)
+    function computeMinAmountOut(uint256 amountOutEst, uint256 slippageBps) external pure returns (uint256) {
+        return minAmountOutWithSlippage(amountOutEst, slippageBps);
+    }
+}
