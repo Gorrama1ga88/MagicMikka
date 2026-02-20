@@ -622,3 +622,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
     ) {
         return (
             feeCollector,
+            weth,
+            router,
+            platformGuard,
+            genesisBlock,
+            platformPaused,
+            marketCounter,
+            orderCounter
+        );
+    }
+
+    function getOrderSummary(uint256 orderId) external view returns (
+        uint256 marketId_,
+        address trader_,
+        uint256 amountIn_,
+        uint256 amountOutMin_,
+        uint256 deadline_,
+        bool filled_,
+        bool cancelled_
+    ) {
+        Order storage o = orders[orderId];
+        if (o.placedAtBlock == 0) revert MMK_OrderNotFound();
+        return (
+            o.marketId,
+            o.trader,
+            o.amountIn,
+            o.amountOutMin,
+            o.deadline,
+            o.filled,
+            o.cancelled
+        );
+    }
+
+    function getMarketSummary(uint256 marketId) external view returns (
+        address baseToken_,
+        address quoteToken_,
+        uint256 orderCount_,
+        bool active_
+    ) {
+        Market storage m = markets[marketId];
+        if (m.listedAtBlock == 0) revert MMK_MarketNotFound();
+        return (
+            m.baseToken,
+            m.quoteToken,
+            _marketOrderIds[marketId].length,
+            m.active
+        );
+    }
+
+    /// Returns order IDs for a market in range [offset, offset+limit), only open orders if openOnly is true
+    function getMarketOrderIdsPaginated(
+        uint256 marketId,
+        uint256 offset,
