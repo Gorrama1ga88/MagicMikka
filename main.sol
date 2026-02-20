@@ -934,3 +934,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
         address tokenOut = path[path.length - 1];
         uint256 balanceBefore = IERC20Min(tokenOut).balanceOf(msg.sender);
 
+        try IRouterMin(router).swapExactTokensForTokens(
+            amountInAfterFee,
+            amountOutMin,
+            path,
+            msg.sender,
+            deadline
+        ) returns (uint256[] memory amounts) {
+            amountOut = amounts[amounts.length - 1];
+        } catch {
+            IERC20Min(path[0]).approve(router, 0);
+            bool refund = IERC20Min(path[0]).transfer(msg.sender, amountIn);
+            if (!refund) revert MMK_TransferFailed();
+            revert MMK_RouterFailed();
+        }
+
+        IERC20Min(path[0]).approve(router, 0);
+        uint256 balanceAfter = IERC20Min(tokenOut).balanceOf(msg.sender);
+        if (balanceAfter <= balanceBefore) revert MMK_TransferFailed();
+        amountOut = balanceAfter - balanceBefore;
+
+        emit MikkaDirectSwapMultiHop(msg.sender, path[0], tokenOut, path.length, amountIn, amountOut, feeWei, block.number);
+        return (amountOut, feeWei);
+    }
+
+    /// Quote for multi-hop path (static call to router getAmountsOut)
+    function quoteMultiHop(address[] calldata path, uint256 amountIn) external view returns (uint256 amountOutEst) {
+        if (path.length < MIKKA_MIN_PATH_LEN || path.length > MIKKA_MAX_PATH_LEN) return 0;
+        if (amountIn == 0) return 0;
+        (bool success, bytes memory data) = router.staticcall(
+            abi.encodeWithSignature("getAmountsOut(uint256,address[])", amountIn, path)
+        );
+        if (!success || data.length < 32) return 0;
+        uint256[] memory amounts = abi.decode(data, (uint256[]));
+        if (amounts.length < 2) return 0;
+        amountOutEst = amounts[amounts.length - 1];
+    }
+
+    /// Quote for multi-hop after platform fee deduction
+    function quoteMultiHopAfterFee(address[] calldata path, uint256 amountIn) external view returns (uint256 amountOutEst) {
+        uint256 afterFee = amountInAfterFee(amountIn);
+        return quoteMultiHop(path, afterFee);
+    }
+
+    // -------------------------------------------------------------------------
+    // Constants exposure (view)
+    // -------------------------------------------------------------------------
+
+    function getBpsDenom() external pure returns (uint256) {
+        return MIKKA_BPS_DENOM;
+    }
+
+    function getFeeBps() external pure returns (uint256) {
