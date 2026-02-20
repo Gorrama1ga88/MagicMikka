@@ -830,3 +830,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
     ) {
         Market storage m = markets[marketId];
         exists = m.listedAtBlock != 0;
+        if (!exists) {
+            return (false, false, 0);
+        }
+        return (true, m.active, _marketOrderIds[marketId].length);
+    }
+
+    /// Reusable path builder for two tokens (internal use in future multi-hop)
+    function _twoTokenPath(address tokenA, address tokenB) internal pure returns (address[] memory) {
+        address[] memory p = new address[](2);
+        p[0] = tokenA;
+        p[1] = tokenB;
+        return p;
+    }
+
+    /// Returns platform nonce for off-chain signing / replay protection
+    function getPlatformNonce() external view returns (bytes32) {
+        return platformNonce;
+    }
+
+    /// Returns domain salt for EIP-712 or similar
+    function getPlatformSalt() external pure returns (bytes32) {
+        return MIKKA_PLATFORM_SALT;
+    }
+
+    /// Fee collector address (immutable)
+    function getFeeCollector() external view returns (address) {
+        return feeCollector;
+    }
+
+    /// WETH address (immutable)
+    function getWeth() external view returns (address) {
+        return weth;
+    }
+
+    /// Genesis block (immutable)
+    function getGenesisBlock() external view returns (uint256) {
+        return genesisBlock;
+    }
+
+    /// Current router (updatable by owner)
+    function getRouter() external view returns (address) {
+        return router;
+    }
+
+    /// Current platform guard (updatable by owner)
+    function getPlatformGuard() external view returns (address) {
+        return platformGuard;
+    }
+
+    /// Paused state
+    function isPaused() external view returns (bool) {
+        return platformPaused;
