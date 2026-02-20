@@ -986,3 +986,55 @@ contract MagicMikka is ReentrancyGuard, Ownable {
     }
 
     function getFeeBps() external pure returns (uint256) {
+        return MIKKA_FEE_BPS;
+    }
+
+    function getMaxSlippageBps() external pure returns (uint256) {
+        return MIKKA_MAX_SLIPPAGE_BPS;
+    }
+
+    function getMinPathLen() external pure returns (uint256) {
+        return MIKKA_MIN_PATH_LEN;
+    }
+
+    function getMaxPathLen() external pure returns (uint256) {
+        return MIKKA_MAX_PATH_LEN;
+    }
+
+    function getMaxMarkets() external pure returns (uint256) {
+        return MIKKA_MAX_MARKETS;
+    }
+
+    function getMaxOrdersPerMarket() external pure returns (uint256) {
+        return MIKKA_MAX_ORDERS_PER_MARKET;
+    }
+
+    // -------------------------------------------------------------------------
+    // Trader order count (how many orders placed by an address)
+    // -------------------------------------------------------------------------
+
+    mapping(address => uint256) private _traderOrderCount;
+
+    function getTraderOrderCount(address trader) external view returns (uint256) {
+        return _traderOrderCount[trader];
+    }
+
+    function _incrementTraderOrderCount(address trader) internal {
+        _traderOrderCount[trader]++;
+    }
+
+    // -------------------------------------------------------------------------
+    // Reentrancy and safety: no payable fallback, accept no ether unless explicit
+    // -------------------------------------------------------------------------
+
+    receive() external payable {
+        revert MMK_ZeroAmount();
+    }
+
+    fallback() external payable {
+        revert MMK_ZeroAddress();
+    }
+
+    // -------------------------------------------------------------------------
+    // Additional view helpers for frontends / subgraphs
+    // -------------------------------------------------------------------------
